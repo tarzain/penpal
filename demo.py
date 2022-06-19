@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 
 import numpy as np
 import svgwrite
@@ -12,6 +13,11 @@ from pyaxidraw import axidraw
 import cv2
 from google.cloud import vision
 import io
+import os
+import openai
+
+# Load your API key from an environment variable or secret management service
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class Hand(object):
 
@@ -121,7 +127,6 @@ class Hand(object):
 
         dwg = svgwrite.Drawing(filename=filename, size=('170mm', '130mm'), viewBox=(0, 0, view_width, view_height))
         dwg.viewbox(width=view_width, height=view_height)
-        # dwg.add(dwg.rect(insert=(0, 0), size=(view_width, view_height), fill='white'))
 
         initial_coord = np.array([0, -(3*line_height / 4)])
         for offsets, line, color, width in zip(strokes, lines, stroke_colors, stroke_widths):
@@ -156,8 +161,7 @@ class Hand(object):
 
 def get_image_from_webcam():
     cv2.namedWindow("preview")
-    vc = cv2.VideoCapture(1)
-    vc.set(cv2.CAP_PROP_FOCUS, 255)
+    vc = cv2.VideoCapture(0)
 
     if vc.isOpened(): # try to get the first frame
         rval, frame = vc.read()
@@ -167,6 +171,7 @@ def get_image_from_webcam():
     while rval:
         cv2.imshow("preview", frame)
         rval, frame = vc.read()
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         key = cv2.waitKey(1)
         if key == 27: # exit on ESC
             break
@@ -204,13 +209,18 @@ if __name__ == '__main__':
     ad.options.mode = "align"
     ad.plot_run()
 
-    human_input = detect_text().replace('\n', ' ').replace('\r', '').replace('Z', 'z')
+    human_input = detect_text().replace('\n', ' ').replace('\r', '')
     print("Detected:", human_input)
+    print("Querying OpenAI...")
+    response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0, max_tokens=16)
+    robot_output = response.choices[0].text
+    print("OpenAI response:", robot_output)
+    robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output)
     hand = Hand()
 
     try:
         print("writing...")
-        lines = [human_input]
+        lines = [robot_output]
         biases = [.95]
         styles = [4]
         stroke_colors = ['black']
@@ -228,6 +238,10 @@ if __name__ == '__main__':
         ad.options.mode = "plot"
         ad.plot_setup("img/usage_demo.svg")
         ad.options.pen_pos_down = 30
+        ad.plot_run()
+
+        ad.plot_setup()
+        ad.options.mode = "align"
         ad.plot_run()
 
     except KeyboardInterrupt:
