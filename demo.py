@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+import time
 
 import numpy as np
 import svgwrite
@@ -15,6 +16,8 @@ from google.cloud import vision
 import io
 import os
 import openai
+
+from pyfirmata import Arduino, util
 
 # Load your API key from an environment variable or secret management service
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -73,7 +76,7 @@ class Hand(object):
 
     def _sample(self, lines, biases=None, styles=None):
         num_samples = len(lines)
-        max_tsteps = 40*max([len(i) for i in lines])
+        max_tsteps = 50*max([len(i) for i in lines])
         biases = biases if biases is not None else [0.5]*num_samples
 
         x_prime = np.zeros([num_samples, 1200, 3])
@@ -125,7 +128,7 @@ class Hand(object):
         view_width = 1000
         view_height = line_height*(len(strokes) + 1)
 
-        dwg = svgwrite.Drawing(filename=filename, size=('170mm', '130mm'), viewBox=(0, 0, view_width, view_height))
+        dwg = svgwrite.Drawing(filename=filename, size=('8.5in', '5.5in'), viewBox=(0, 0, view_width, view_height))
         dwg.viewbox(width=view_width, height=view_height)
 
         initial_coord = np.array([0, -(3*line_height / 4)])
@@ -172,9 +175,7 @@ def get_image_from_webcam():
         cv2.imshow("preview", frame)
         rval, frame = vc.read()
         frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-        key = cv2.waitKey(1)
-        if key == 27: # exit on ESC
-            break
+        break
     cv2.imwrite("./webcam.jpg", frame)
     vc.release()
     cv2.destroyWindow("preview")
@@ -201,48 +202,72 @@ def detect_text():
     if(len(texts)):
         return texts[0].description
     raise Exception("No text detected")
-    
+
+def get_pen_in(sensor):
+    value = sensor.read()
+    if value is None or value < 0.02:
+        print("pen is in", value)
+        return True
+    print("pen is out", value)
+    return False
 
 if __name__ == '__main__':
+    # initialize everything
+    state = "ROBOT_WAITING"
     ad = axidraw.AxiDraw()
     ad.plot_setup()
     ad.options.mode = "align"
     ad.plot_run()
+    board = Arduino('/dev/cu.usbserial-0001')
+    it = util.Iterator(board)
+    it.start()
+    photoresistor = board.analog[0]
+    photoresistor.enable_reporting()
 
-    human_input = detect_text().replace('\n', ' ').replace('\r', '')
-    print("Detected:", human_input)
-    print("Querying OpenAI...")
-    response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0, max_tokens=16)
-    robot_output = response.choices[0].text
-    print("OpenAI response:", robot_output)
-    robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output)
-    hand = Hand()
+    while True:
+        pen_in = get_pen_in(photoresistor)
+        if state == "ROBOT_WAITING":
+            time.sleep(1)
+            print("waiting...")
+            if pen_in is False and get_pen_in(photoresistor):
+                state = "ROBOT_THINKING"
 
-    try:
-        print("writing...")
-        lines = [robot_output]
-        biases = [.95]
-        styles = [4]
-        stroke_colors = ['black']
-        stroke_widths = [1]
-        print("Synthesizing handwriting...")
-        hand.write(
-            filename='img/usage_demo.svg',
-            lines=lines,
-            biases=biases,
-            styles=styles,
-            stroke_colors=stroke_colors,
-            stroke_widths=stroke_widths
-        )
-        print("Writing to plotter")
-        ad.options.mode = "plot"
-        ad.plot_setup("img/usage_demo.svg")
-        ad.options.pen_pos_down = 30
-        ad.plot_run()
+        if state == "ROBOT_THINKING":
+            human_input = detect_text().replace('\n', ' ').replace('\r', '')
+            print("Detected:", human_input)
+            print("Querying OpenAI...")
+            response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0, max_tokens=12)
+            robot_output = response.choices[0].text
+            print("OpenAI response:", robot_output)
+            robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output)
+            hand = Hand()
+            print("writing...")
+            if(len(robot_output) > 75):
+                robot_output = ' '.join(robot_output.split(' ')[:-2])
+            lines = [robot_output]
+            biases = [.99]
+            styles = [4]
+            stroke_colors = ['black']
+            stroke_widths = [1]
+            print("Synthesizing handwriting...")
+            hand.write(
+                filename='img/usage_demo.svg',
+                lines=lines,
+                biases=biases,
+                styles=styles,
+                stroke_colors=stroke_colors,
+                stroke_widths=stroke_widths
+            )
+            state = "ROBOT_WRITING"
 
-        ad.plot_setup()
-        ad.options.mode = "align"
-        ad.plot_run()
+        if state == "ROBOT_WRITING":
+            print("Writing to plotter: ", )
+            ad.options.mode = "plot"
+            ad.plot_setup("img/usage_demo.svg")
+            ad.options.pen_pos_down = 30
+            ad.plot_run()
 
-    except KeyboardInterrupt:
-        pass
+            ad.plot_setup()
+            ad.options.mode = "align"
+            ad.plot_run()
+            state = "ROBOT_WAITING"
