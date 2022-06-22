@@ -22,10 +22,11 @@ from pyfirmata import Arduino, util
 # Load your API key from an environment variable or secret management service
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+
 class Hand(object):
 
     def __init__(self):
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
         self.nn = rnn(
             log_dir='logs',
             checkpoint_dir='checkpoints',
@@ -205,7 +206,7 @@ def detect_text():
 
 def get_pen_in(sensor):
     value = sensor.read()
-    if value is None or value < 0.02:
+    if value is None or value < 0.5:
         print("pen is in", value)
         return True
     print("pen is out", value)
@@ -221,7 +222,7 @@ if __name__ == '__main__':
     board = Arduino('/dev/cu.usbserial-0001')
     it = util.Iterator(board)
     it.start()
-    photoresistor = board.analog[0]
+    photoresistor = board.analog[5]
     photoresistor.enable_reporting()
 
     while True:
@@ -233,7 +234,7 @@ if __name__ == '__main__':
                 state = "ROBOT_THINKING"
 
         if state == "ROBOT_THINKING":
-            human_input = detect_text().replace('\n', ' ').replace('\r', '')
+            human_input = detect_text().replace('\n', ' ').replace('\r', '').lower()
             print("Detected:", human_input)
             print("Querying OpenAI...")
             response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0, max_tokens=12)
@@ -245,7 +246,7 @@ if __name__ == '__main__':
             if(len(robot_output) > 75):
                 robot_output = ' '.join(robot_output.split(' ')[:-2])
             lines = [robot_output]
-            biases = [.99]
+            biases = [.95]
             styles = [4]
             stroke_colors = ['black']
             stroke_widths = [1]
