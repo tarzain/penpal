@@ -13,7 +13,7 @@ Of particular note are: `tensorflow`, `opencv`, `pyfirmata`, `google-cloud-visio
 
 3. Set environment variables: `GOOGLE_APPLICATION_CREDENTIALS` and `OPENAI_API_KEY`
 
-4. Confirm that your webcam is connected to port 0, your Arduino is connected to `tty/usbserial_0001`, your Google Cloud Vision account is configured for billing, and your OpenAI API account is configured appropriately.
+4. Confirm that your webcam is connected to port 0, your Arduino is connected to `/dev/cu.usbserial-0001`, your Google Cloud Vision account is configured for billing, and your OpenAI API account is configured appropriately.
 
 ### Configuration (physical)
 * [x] 8.5" x 5.5" paper

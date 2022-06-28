@@ -243,13 +243,12 @@ if __name__ == '__main__':
             robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output)
             hand = Hand()
             print("writing...")
-            if(len(robot_output) > 75):
-                robot_output = ' '.join(robot_output.split(' ')[:-2])
-            lines = [robot_output]
-            biases = [.95]
-            styles = [4]
-            stroke_colors = ['black']
-            stroke_widths = [1]
+            words = robot_output.split()
+            lines = [' '.join(linewords) for linewords in np.array_split(words, len(words)//9)]
+            biases = [.95 for line in lines]
+            styles = [4 for line in lines]
+            stroke_colors = ['black' for line in lines]
+            stroke_widths = [1 for line in lines]
             print("Synthesizing handwriting...")
             hand.write(
                 filename='img/usage_demo.svg',
