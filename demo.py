@@ -164,22 +164,26 @@ class Hand(object):
         dwg.save()
 
 def get_image_from_webcam():
+    rectangle = (350,475), (1250,1025)
     cv2.namedWindow("preview")
-    vc = cv2.VideoCapture(0)
-
+    vc = cv2.VideoCapture(1)
     if vc.isOpened(): # try to get the first frame
         rval, frame = vc.read()
     else:
         rval = False
 
     while rval:
-        cv2.imshow("preview", frame)
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
+        rect = cv2.rectangle(frame, rectangle[0], rectangle[1], (255,0,0), 2)
+        cv2.imshow("preview", rect)
+        cv2.waitKey(1)
         rval, frame = vc.read()
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        frame = cv2.rotate(frame, cv2.ROTATE_180)
         break
-    cv2.imwrite("./webcam.jpg", frame)
+    
+    cv2.imwrite("./webcam.jpg", frame[rectangle[0][1]:rectangle[1][1], rectangle[0][0]:rectangle[1][0]])
     vc.release()
-    cv2.destroyWindow("preview")
+    # cv2.destroyWindow("preview")
     return frame
 
 def detect_text():
@@ -229,7 +233,7 @@ if __name__ == '__main__':
         pen_in = get_pen_in(photoresistor)
         if state == "ROBOT_WAITING":
             time.sleep(1)
-            print("waiting...")
+            print("waiting... Pen In?", pen_in)
             if pen_in is False and get_pen_in(photoresistor):
                 state = "ROBOT_THINKING"
 
@@ -237,14 +241,14 @@ if __name__ == '__main__':
             human_input = detect_text().replace('\n', ' ').replace('\r', '').lower()
             print("Detected:", human_input)
             print("Querying OpenAI...")
-            response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0, max_tokens=12)
+            response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0.25, max_tokens=50)
             robot_output = response.choices[0].text
             print("OpenAI response:", robot_output)
-            robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output)
+            robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output).replace('\n', '. ')
             hand = Hand()
             print("writing...")
             words = robot_output.split()
-            lines = [' '.join(linewords) for linewords in np.array_split(words, len(words)//9)]
+            lines = [' '.join(linewords) for linewords in np.array_split(words, len(words)//5)]
             biases = [.95 for line in lines]
             styles = [4 for line in lines]
             stroke_colors = ['black' for line in lines]
