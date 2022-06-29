@@ -52,7 +52,7 @@ class Hand(object):
         )
         self.nn.restore()
 
-    def write(self, filename, lines, biases=None, styles=None, stroke_colors=None, stroke_widths=None):
+    def write(self, filename, lines, biases=None, styles=None, stroke_colors=None, stroke_widths=None, initial_ypos=None):
         valid_char_set = set(drawing.alphabet)
         for line_num, line in enumerate(lines):
             if len(line) > 75:
@@ -73,7 +73,7 @@ class Hand(object):
                     )
 
         strokes = self._sample(lines, biases=biases, styles=styles)
-        self._draw(strokes, lines, filename, stroke_colors=stroke_colors, stroke_widths=stroke_widths)
+        self._draw(strokes, lines, filename, stroke_colors=stroke_colors, stroke_widths=stroke_widths, initial_ypos=initial_ypos)
 
     def _sample(self, lines, biases=None, styles=None):
         num_samples = len(lines)
@@ -121,18 +121,19 @@ class Hand(object):
         samples = [sample[~np.all(sample == 0.0, axis=1)] for sample in samples]
         return samples
 
-    def _draw(self, strokes, lines, filename, stroke_colors=None, stroke_widths=None):
+    def _draw(self, strokes, lines, filename, stroke_colors=None, stroke_widths=None, initial_ypos=None):
         stroke_colors = stroke_colors or ['black']*len(lines)
         stroke_widths = stroke_widths or [2]*len(lines)
 
         line_height = 60
-        view_width = 1000
-        view_height = line_height*(len(strokes) + 1)
+        view_width = 900
+        view_height = 550
 
-        dwg = svgwrite.Drawing(filename=filename, size=('8.5in', '5.5in'), viewBox=(0, 0, view_width, view_height))
+        dwg = svgwrite.Drawing(filename=filename, size=('8.5in', '5.5in'))
         dwg.viewbox(width=view_width, height=view_height)
 
-        initial_coord = np.array([0, -(3*line_height / 4)])
+        initial_ypos = initial_ypos or (3*line_height / 4)
+        initial_coord = np.array([0, -initial_ypos])
         for offsets, line, color, width in zip(strokes, lines, stroke_colors, stroke_widths):
 
             if not line:
@@ -205,7 +206,14 @@ def detect_text():
     
     texts = response.text_annotations
     if(len(texts)):
-        return texts[0].description
+        cv2.namedWindow("text")
+        frame = cv2.imread('webcam.jpg')
+        vertices = texts[0].bounding_poly.vertices
+        rectangle = (vertices[0].x, vertices[0].y),(vertices[2].x, vertices[2].y)
+        rectangleImg = cv2.rectangle(frame, rectangle[0], rectangle[1], (0,255,0), 2)
+        cv2.imshow("text", rectangleImg)
+        cv2.waitKey(10)
+        return texts[0].description, rectangle
     raise Exception("No text detected")
 
 def get_pen_in(sensor):
@@ -233,22 +241,24 @@ if __name__ == '__main__':
         pen_in = get_pen_in(photoresistor)
         if state == "ROBOT_WAITING":
             time.sleep(1)
-            print("waiting... Pen In?", pen_in)
+            get_image_from_webcam()
+            print("waiting...")
             if pen_in is False and get_pen_in(photoresistor):
                 state = "ROBOT_THINKING"
 
         if state == "ROBOT_THINKING":
-            human_input = detect_text().replace('\n', ' ').replace('\r', '').lower()
+            human_input, bounding_box = detect_text()
+            human_input = human_input.replace('\n', ' ').replace('\r', '').lower()
             print("Detected:", human_input)
             print("Querying OpenAI...")
             response = openai.Completion.create(model="text-davinci-002", prompt=human_input, temperature=0.25, max_tokens=50)
             robot_output = response.choices[0].text
             print("OpenAI response:", robot_output)
-            robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output).replace('\n', '. ')
+            robot_output = re.sub(r"[^%s]" % ''.join(drawing.alphabet), "", robot_output.replace('\n', '. '))
             hand = Hand()
             print("writing...")
             words = robot_output.split()
-            lines = [' '.join(linewords) for linewords in np.array_split(words, len(words)//5)]
+            lines = [' '.join(linewords) for linewords in np.array_split(words, len(words)//5)] if len(words) > 5 else [robot_output]
             biases = [.95 for line in lines]
             styles = [4 for line in lines]
             stroke_colors = ['black' for line in lines]
@@ -260,7 +270,8 @@ if __name__ == '__main__':
                 biases=biases,
                 styles=styles,
                 stroke_colors=stroke_colors,
-                stroke_widths=stroke_widths
+                stroke_widths=stroke_widths,
+                initial_ypos=bounding_box[1][1]+40
             )
             state = "ROBOT_WRITING"
 
