@@ -1,27 +1,21 @@
-import os
-import logging
-import re
-import time
-
-import numpy as np
-import svgwrite
-
-import drawing
-from rnn import rnn
-
-from pyaxidraw import axidraw
-
-import cv2
 from google.cloud import vision
-import io
-import os
-import openai
-
+from pyaxidraw import axidraw
 from pyfirmata import Arduino, util
+from rnn import rnn
+import cv2
+import drawing
+import io
+import logging
+import numpy as np
+import openai
+import os
+import os
+import re
+import svgwrite
+import time
 
 # Load your API key from an environment variable or secret management service
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 
 class Hand(object):
 
