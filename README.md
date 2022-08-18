@@ -1,5 +1,6 @@
 # PenPal
-An end to end conversational agent via physical handwriting.
+An IRL language model playground via pen & paper.
+
 ![IMG_6953](https://user-images.githubusercontent.com/578640/185456872-fdfc5fdf-4053-4630-9a47-f570e6fc2f06.jpg)
 
 We use Google Cloud Vision to read handwritten text from the page, GPT-3 from OpenAI to complete the text, neural network handwriting synthesis to synthesize the stroke trajectory for natural looking writing, and then finally the AxiDraw SDK to write the response on the paper. An Arduino Nano with a photoresistor in a custom 3D printed pen holder controls the "handoff" between human and machine.
@@ -21,7 +22,7 @@ Of particular note are: `tensorflow`, `opencv`, `pyfirmata`, `google-cloud-visio
 * [x] AxiDraw oriented at the top of your page
 * [x] Pen carriage set to the top left
 * [x] Pen loaded into the pen fixture at the appropriate height
-* [x] Webcam pointed at the page from above and to the left
+* [x] Webcam pointed at the page from above and the top of the paper (as in photo)
 * [x] Human pen in the pen holder.
 
 ## Usage
