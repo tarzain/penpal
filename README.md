@@ -1,5 +1,6 @@
 # PenPal
 An end to end conversational agent via physical handwriting.
+![IMG_6953](https://user-images.githubusercontent.com/578640/185456872-fdfc5fdf-4053-4630-9a47-f570e6fc2f06.jpg)
 
 We use Google Cloud Vision to read handwritten text from the page, GPT-3 from OpenAI to complete the text, neural network handwriting synthesis to synthesize the stroke trajectory for natural looking writing, and then finally the AxiDraw SDK to write the response on the paper. An Arduino Nano with a photoresistor in a custom 3D printed pen holder controls the "handoff" between human and machine.
 
